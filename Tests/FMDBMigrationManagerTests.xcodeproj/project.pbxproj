@@ -19,6 +19,7 @@
 		25FFD1511942553B00F62FAF /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 25FFD1501942553B00F62FAF /* UIKit.framework */; };
 		3F270AFE6C1E4040AE6F0B74 /* libPods-osx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AF9CF4CAEAAD4C4CB25865FB /* libPods-osx.a */; };
 		49079291CD404940AE18D60E /* libPods-ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2300108E74444446931093DD /* libPods-ios.a */; };
+		E0E652C01D82D32C00C9E845 /* Code in Resources */ = {isa = PBXBuildFile; fileRef = E0E652BF1D82D32C00C9E845 /* Code */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,7 @@
 		7E64170A48AF6014ABFEE5D7 /* Pods-ios.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ios.release.xcconfig"; path = "../Pods/Target Support Files/Pods-ios/Pods-ios.release.xcconfig"; sourceTree = "<group>"; };
 		AF9CF4CAEAAD4C4CB25865FB /* libPods-osx.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-osx.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D34770AB47018BBD30CA12EC /* Pods-osx.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-osx.release.xcconfig"; path = "../Pods/Target Support Files/Pods-osx/Pods-osx.release.xcconfig"; sourceTree = "<group>"; };
+		E0E652BF1D82D32C00C9E845 /* Code */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Code; path = ../Code; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				25FFD172194255D400F62FAF /* FMDBMigrationManagerTests.m */,
+				E0E652BF1D82D32C00C9E845 /* Code */,
 				25D9260B194396A4000FDB83 /* Migrations.bundle */,
 				25D926121943C20A000FDB83 /* AlternateNamedMigrations.bundle */,
 				25FFD173194255D400F62FAF /* Info.plist */,
@@ -193,6 +196,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0E652C01D82D32C00C9E845 /* Code in Resources */,
 				25D9260C194396A4000FDB83 /* Migrations.bundle in Resources */,
 				25D926131943C20A000FDB83 /* AlternateNamedMigrations.bundle in Resources */,
 			);

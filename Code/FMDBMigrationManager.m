@@ -29,6 +29,7 @@ NSString *const FMDBMigrationManagerProgressMigrationUserInfoKey = @"migration";
 // Private Constants
 static NSString *const FMDBMigrationFilenameRegexString = @"^(\\d+)_?((?<=_)[\\w\\s-]+)?(?<!_)\\.sql$";
 
+///给定路径是否满足迁移sql的命名规范
 BOOL FMDBIsMigrationAtPath(NSString *path)
 {
     static NSRegularExpression *migrationRegex;
@@ -40,6 +41,7 @@ BOOL FMDBIsMigrationAtPath(NSString *path)
     return [migrationRegex rangeOfFirstMatchInString:filename options:0 range:NSMakeRange(0, [filename length])].location != NSNotFound;
 }
 
+///遍历所有类 返回所有满足Protocol的类
 static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
 {
     NSMutableArray *conformingClasses = [NSMutableArray new];
@@ -63,11 +65,12 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
 @property (nonatomic) FMDatabase *database;
 @property (nonatomic, assign) BOOL shouldCloseOnDealloc;
 @property (nonatomic) NSArray *migrations;
-@property (nonatomic) NSMutableArray *externalMigrations;
+@property (nonatomic) NSMutableArray *externalMigrations;///migrations的getter方法中 如果migrations为空则会从bundle中查找并且合并externalMigrations
 @end
 
 @implementation FMDBMigrationManager
 
+///path数据库路径 bundle 一般用main bundle
 + (instancetype)managerWithDatabaseAtPath:(NSString *)path migrationsBundle:(NSBundle *)bundle
 {
     FMDatabase *database = [FMDatabase databaseWithPath:path];
@@ -80,6 +83,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
 }
 
 // Designated initializer
+///如果数据库为打开 打开数据库
 - (id)initWithDatabase:(FMDatabase *)database migrationsBundle:(NSBundle *)migrationsBundle
 {
     if (!database) [NSException raise:NSInvalidArgumentException format:@"Cannot initialize a `%@` with nil `database`.", [self class]];
@@ -108,21 +112,24 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     if (self.shouldCloseOnDealloc) [_database close];
 }
 
+///schema_migrations是否已创建
 - (BOOL)hasMigrationsTable
 {
     FMResultSet *resultSet = [self.database executeQuery:@"SELECT name FROM sqlite_master WHERE type='table' AND name=?", @"schema_migrations"];
-    if ([resultSet next]) {
+    if ([resultSet ·]) {
         [resultSet close];
         return YES;
     }
     return NO;
 }
 
+///是否需要迁移
 - (BOOL)needsMigration
 {
     return !self.hasMigrationsTable || [self.pendingVersions count] > 0;
 }
 
+///创建表schema_migrations
 - (BOOL)createMigrationsTable:(NSError **)error
 {
     BOOL success = [self.database executeStatements:@"CREATE TABLE schema_migrations(version INTEGER UNIQUE NOT NULL)"];
@@ -130,6 +137,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return success;
 }
 
+///返回schema_migrations表中最大版本 或 0
 - (uint64_t)currentVersion
 {
     if (!self.hasMigrationsTable) return 0;
@@ -143,6 +151,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return version;;
 }
 
+///返回schema_migrations表中最小版本 或 0
 - (uint64_t)originVersion
 {
     if (!self.hasMigrationsTable) return 0;
@@ -156,6 +165,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return version;
 }
 
+///schema_migrations中的所有版本
 - (NSArray *)appliedVersions
 {
     if (!self.hasMigrationsTable) return nil;
@@ -170,6 +180,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return [versions sortedArrayUsingSelector:@selector(compare:)];
 }
 
+///返回未执行的迁移版本号  升序
 - (NSArray *)pendingVersions
 {
     if (!self.hasMigrationsTable) return [[self.migrations valueForKey:@"version"] sortedArrayUsingSelector:@selector(compare:)];
@@ -199,6 +210,13 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     [self addMigrationsAndSortByVersion:migrations];
 }
 
+///返回_migrations
+///如果_migrations非空直接返回
+///如果_migrations为空:
+///1.查找bundle下的所有符合命名规范的文件 生成FMDBFileMigration实例
+///2.遍历所有遵循了FMDBMigrating协议的类 FMDBFileMigration除外 new实例
+///3.合并externalMigrations
+///4.升序排序
 - (NSArray *)migrations
 {
     // Memoize the migrations list
@@ -233,6 +251,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return _migrations;
 }
 
+///从migrations中查找
 - (id<FMDBMigrating>)migrationForVersion:(uint64_t)version
 {
     for (id<FMDBMigrating>migration in [self migrations]) {
@@ -240,7 +259,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     }
     return nil;
 }
-
+///从migrations中查找
 - (id<FMDBMigrating>)migrationForName:(NSString *)name
 {
     for (id<FMDBMigrating>migration in [self migrations]) {
@@ -249,19 +268,24 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return nil;
 }
 
+///执行pendingVersions中的迁移 全部都执行成功 才返回成功
 - (BOOL)migrateDatabaseToVersion:(uint64_t)version progress:(void (^)(NSProgress *progress))progressBlock error:(NSError **)error
 {
     BOOL success = YES;
     NSArray *pendingVersions = self.pendingVersions;
     NSProgress *progress = [NSProgress progressWithTotalUnitCount:[pendingVersions count]];
+    
+    //每个迁移一个事务 一旦一个迁移出错 事务回滚 后面的迁移将不会被执行
     for (NSNumber *migrationVersionNumber in pendingVersions) {
         [self.database beginTransaction];
         
+        //max
         uint64_t migrationVersion = [migrationVersionNumber unsignedLongLongValue];
         if (migrationVersion > version) {
             [self.database commit];
             break;
         }
+        
         id<FMDBMigrating> migration = [self migrationForVersion:migrationVersion];
         success = [migration migrateDatabase:self.database error:error];
         if (!success) {
@@ -295,6 +319,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
     return success;
 }
 
+///添加到externalMigrations以及_migrations
 - (void)addMigrationsAndSortByVersion:(NSArray *)migrations
 {
     [self.externalMigrations addObjectsFromArray:migrations];
@@ -308,7 +333,7 @@ static NSArray *FMDBClassesConformingToProtocol(Protocol *protocol)
 }
 
 @end
-
+///验证路径的正确性 获取version name
 static BOOL FMDBMigrationScanMetadataFromPath(NSString *path, uint64_t *version, NSString **name)
 {
     NSError *error = nil;
@@ -326,6 +351,7 @@ static BOOL FMDBMigrationScanMetadataFromPath(NSString *path, uint64_t *version,
     if (!versionString) {
         return NO;
     }
+    //10进制
     *version = strtoull([versionString UTF8String], NULL, 10);
     NSRange range = [result rangeAtIndex:2];
     *name = (range.length) ? [migrationName substringWithRange:[result rangeAtIndex:2]] : nil;
@@ -338,7 +364,7 @@ static BOOL FMDBMigrationScanMetadataFromPath(NSString *path, uint64_t *version,
 @end
 
 @implementation FMDBFileMigration
-
+///path .sql文件路径
 + (instancetype)migrationWithPath:(NSString *)path
 {
     return [[self alloc] initWithPath:path];
